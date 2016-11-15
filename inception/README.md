@@ -50,7 +50,7 @@ primary differences with that setup are:
     language called TensorFlow-Slim.
 
 For more details about TensorFlow-Slim, please see the [Slim README]
-(slim/README.md). Please note that this higher-level language is still
+(inception/slim/README.md). Please note that this higher-level language is still
 *experimental* and the API may change over time depending on usage and
 subsequent research.
 
@@ -66,9 +66,9 @@ and convert the ImageNet data to native TFRecord format. The TFRecord format
 consists of a set of sharded files where each entry is a serialized `tf.Example`
 proto. Each `tf.Example` proto contains the ImageNet image (JPEG encoded) as
 well as metadata such as label and bounding box information. See
-[`parse_example_proto`](image_processing.py) for details.
+[`parse_example_proto`](inception/image_processing.py) for details.
 
-We provide a single [script](data/download_and_preprocess_imagenet.sh) for
+We provide a single [script](inception/data/download_and_preprocess_imagenet.sh) for
 downloading and converting ImageNet data to TFRecord format. Downloading and
 preprocessing the data may take several hours (up to half a day) depending on
 your network and computer speed. Please be patient.
@@ -94,7 +94,7 @@ DATA_DIR=$HOME/imagenet-data
 bazel build inception/download_and_preprocess_imagenet
 
 # run it
-bazel-bin/inception/download_and_preprocess_imagenet "${DATA_DIR}$"
+bazel-bin/inception/download_and_preprocess_imagenet "${DATA_DIR}"
 ```
 
 The final line of the output script should read:
@@ -254,7 +254,7 @@ may construct a an [`Optimizer`]
 (https://www.tensorflow.org/api_docs/python/train.html#optimizers) in TensorFlow
 that constructs the necessary graph for either case diagrammed below from
 TensorFlow [Whitepaper]
-(http://download.tensorflow.org/paper/whitepaper2015.pdf)):
+(http://download.tensorflow.org/paper/whitepaper2015.pdf):
 
 <div style="width:40%; margin:auto; margin-bottom:10px; margin-top:20px;">
   <img style="width:100%"
@@ -444,7 +444,7 @@ There is a single automated script that downloads the data set and converts it
 to the TFRecord format. Much like the ImageNet data set, each record in the
 TFRecord format is a serialized `tf.Example` proto whose entries include a
 JPEG-encoded string and an integer label. Please see [`parse_example_proto`]
-(image_processing.py) for details.
+(inception/image_processing.py) for details.
 
 The script just takes a few minutes to run depending your network connection
 speed for downloading and processing the images. Your hard disk requires 200MB
@@ -474,10 +474,12 @@ files in the `DATA_DIR`. The files will match the patterns `train-????-of-00001`
 and `validation-?????-of-00001`, respectively.
 
 **NOTE** If you wish to prepare a custom image data set for transfer learning,
-you will need to invoke [`build_image_data.py`](data/build_image_data.py) on
+you will need to invoke [`build_image_data.py`](inception/data/build_image_data.py) on
 your custom data set. Please see the associated options and assumptions behind
 this script by reading the comments section of [`build_image_data.py`]
-(data/build_image_data.py).
+(inception/data/build_image_data.py). Also, if your custom data has a different 
+number of examples or classes, you need to change the appropriate values in
+[`imagenet_data.py`](inception/imagenet_data.py).
 
 The second piece you will need is a trained Inception v3 image model. You have
 the option of either training one yourself (See [How to Train from Scratch]
@@ -527,7 +529,7 @@ checkpoint. If you set this flag to true, you can train a new classification
 layer from scratch.
 
 In order to understand how `--fine_tune` works, please see the discussion on
-`Variables` in the TensorFlow-Slim [`README.md`](slim/README.md).
+`Variables` in the TensorFlow-Slim [`README.md`](inception/slim/README.md).
 
 Putting this all together you can retrain a pre-trained Inception-v3 model on
 the flowers data set with the following command.
@@ -583,13 +585,13 @@ FLOWERS_DATA_DIR=/tmp/flowers-data/
 EVAL_DIR=/tmp/flowers_eval/
 
 # Evaluate the fine-tuned model on a hold-out of the flower data set.
-blaze-bin/inception/flowers_eval \
+bazel-bin/inception/flowers_eval \
   --eval_dir="${EVAL_DIR}" \
   --data_dir="${FLOWERS_DATA_DIR}" \
   --subset=validation \
   --num_examples=500 \
   --checkpoint_dir="${TRAIN_DIR}" \
-  --input_queue_memory_factfor=1 \
+  --input_queue_memory_factor=1 \
   --run_once
 ```
 
@@ -607,7 +609,7 @@ Succesfully loaded model from /tmp/flowers/model.ckpt-1999 at step=1999.
 
 One can use the existing scripts supplied with this model to build a new dataset
 for training or fine-tuning. The main script to employ is
-[`build_image_data.py`](./build_image_data.py). Briefly, this script takes a
+[`build_image_data.py`](inception/data/build_image_data.py). Briefly, this script takes a
 structured directory of images and converts it to a sharded `TFRecord` that can
 be read by the Inception model.
 
@@ -664,7 +666,7 @@ bazel-bin/inception/build_image_data \
 ```
 
 where the `$OUTPUT_DIRECTORY` is the location of the sharded `TFRecords`. The
-`$LABELS_FILE` will be a text file that is outputted by the script that provides
+`$LABELS_FILE` will be a text file that is read by the script that provides
 a list of all of the labels. For instance, in the case flowers data set, the
 `$LABELS_FILE` contained the following data:
 
@@ -699,8 +701,12 @@ and
 
 where 24 and 8 are the number of shards specified for each dataset,
 respectively. Generally speaking, we aim for selecting the number of shards such
-that roughly 1024 images reside in each shard. One this data set is built you
+that roughly 1024 images reside in each shard. Once this data set is built, you
 are ready to train or fine-tune an Inception model on this data set.
+
+Note, if you are piggy backing on the flowers retraining scripts, be sure to 
+update `num_classes()` and `num_examples_per_epoch()` in `flowers_data.py` 
+to correspond with your data.
 
 ## Practical Considerations for Training a Model
 
@@ -714,7 +720,7 @@ considerations for novices.
 
 Roughly 5-10 hyper-parameters govern the speed at which a network is trained. In
 addition to `--batch_size` and `--num_gpus`, there are several constants defined
-in [inception_train.py](./inception_train.py) which dictate the learning
+in [inception_train.py](inception/inception_train.py) which dictate the learning
 schedule.
 
 ```shell
@@ -788,7 +794,7 @@ model architecture, this corresponds to about 4GB of CPU memory. You may lower
 `input_queue_memory_factor` in order to decrease the memory footprint. Keep in
 mind though that lowering this value drastically may result in a model with
 slightly lower predictive accuracy when training from scratch. Please see
-comments in [`image_processing.py`](./image_processing.py) for more details.
+comments in [`image_processing.py`](inception/image_processing.py) for more details.
 
 ## Troubleshooting
 
@@ -824,7 +830,7 @@ input image size, then you may need to redesign the entire model architecture.
 We targeted a desktop with 128GB of CPU ram connected to 8 NVIDIA Tesla K40 GPU
 cards but we have run this on desktops with 32GB of CPU ram and 1 NVIDIA Tesla
 K40. You can get a sense of the various training configurations we tested by
-reading the comments in [`inception_train.py`](./inception_train.py).
+reading the comments in [`inception_train.py`](inception/inception_train.py).
 
 #### How do I continue training from a checkpoint in distributed setting?
 
